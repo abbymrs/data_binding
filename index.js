@@ -4,6 +4,7 @@ class Cvue {
         this._data = options.data;
         this.observer(this._data);
         this.compile(options.el);
+
     }
     compile(el) {
         const element = document.querySelector(el);
@@ -11,6 +12,7 @@ class Cvue {
     }
     observer(data) {
         Object.keys(data).forEach(key => {
+            const _this = this;
             let value = data[key];
             const dep = new Dep();
             Object.defineProperty(data, key, {
@@ -25,17 +27,20 @@ class Cvue {
                 set(newValue) {
                     dep.notify(newValue);
                     value = newValue;
+                    _this.update();
                 }
             });
         });
     }
-    compileNode(element) {
+    compileNode(element, source) {
         const childNodes = element.childNodes;
         [...childNodes].forEach(node => {
             if (node.nodeType == 3) {
-                let nodeContent = node.textContent;
                 const reg = /(\{\{\s*(\S*?)\s*\}\})+/;
+                let nodeContent = window.source || node.textContent;
+                if(reg.test(node.textContent)) window.source = node.textContent;
                 let oldValue = {};
+                element.isDirty = true;
                 while (reg.test(nodeContent)) {
                     nodeContent = nodeContent.replace(reg, (matched, p1, p2)=>{
                         oldValue[p2] = this._data[p2];
@@ -43,18 +48,7 @@ class Cvue {
                     });
                 }
                 node.textContent = nodeContent;
-                new Watcher(this, RegExp.$2, newValue => {
-                    for(let key in this._data){
-                        setTimeout(_=>{
-                            if(RegExp.$2 == key){
-                                while(new RegExp(oldValue[key]).test(nodeContent)){
-                                    nodeContent = nodeContent.replace(oldValue[key], newValue)
-                                }
-                                node.textContent = nodeContent;
-                            }
-                        })
-                    }
-                });
+            
             } else if (node.nodeType == 1) {
                 const attrs = node.attributes;
                 [...attrs].forEach(attr => {
@@ -79,6 +73,10 @@ class Cvue {
             }
         });
     }
+    update(){
+        const container = document.querySelector(this.$options.el);
+        this.compileNode(container, window.source);
+    }
 }
 class Dep {
     constructor() {
@@ -99,6 +97,7 @@ class Watcher {
         cv._data[exp];
         this.cb = cb;
         Dep.target = null;
+        console.log(cv._data[exp]);
     }
     update(newValue) {
         this.cb(newValue);
